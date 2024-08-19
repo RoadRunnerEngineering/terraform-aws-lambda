@@ -61,10 +61,6 @@ jobs:
         name: tfdocs
         working-directory: .
 
-      - run: terraform-docs markdown table --output-file README.md --output-mode inject .
-        name: tfdocs cloudwatch-logging
-        working-directory: ./modules/cloudwatch-logging
-
       - name: commit changes
         env:
           GH_TOKEN: ${{ github.token }}
