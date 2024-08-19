@@ -1,0 +1,81 @@
+name: Lint
+
+on:
+  pull_request:
+    branches:
+      - main
+
+# cancel workflow runs in progress when a new commit comes through
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+ BRANCH_NAME: ${{ github.head_ref || github.ref_name }} 
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get Terraform and TFLint versions from .tool-versions
+        id: tool-versions
+        run: |
+          echo "terraform-version=$(cat .tool-versions | grep 'terraform' | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "tflint-version=$(cat .tool-versions | grep 'tflint' | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tool-versions.outputs.terraform-version }}
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ format('v{0}', steps.tool-versions.outputs.tflint-version) }}
+          # https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/plugins.md#avoiding-rate-limiting
+          github_token: ${{ github.token }} 
+
+      - run: terraform init
+        name: terraform init main module
+
+      - run: terraform validate
+        name: terraform validate main module
+
+      - run: tflint --init 
+        name: tflint init main module
+      
+      - run: tflint
+        name: tflint main module
+
+      - run: |
+          mkdir -p tmp && cd tmp
+          curl -Lo ./terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/download/v0.17.0/terraform-docs-v0.17.0-$(uname)-amd64.tar.gz
+          tar -xzf terraform-docs.tar.gz
+          chmod +x terraform-docs
+          mv terraform-docs /usr/local/bin/terraform-docs
+          cd .. && rm -rf tmp
+        name: install tfdocs
+
+      - run: terraform-docs markdown table --output-file README.md --output-mode inject .
+        name: tfdocs
+        working-directory: .
+
+      - run: terraform-docs markdown table --output-file README.md --output-mode inject .
+        name: tfdocs cloudwatch-logging
+        working-directory: ./modules/cloudwatch-logging
+
+      - name: commit changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git switch ${{ env.BRANCH_NAME }}
+          git config --global user.email "devops@roadrunnerwm.com"
+          git config --global user.name "DevOps"
+          git add README.md
+          git add modules/cloudwatch-logging/README.md
+          export CHANGES=$(git diff --cached)
+          if [ -n "$CHANGES" ]; then
+            git commit -m "Update READMEs with Terraform Docs."
+            git push
+          fi
