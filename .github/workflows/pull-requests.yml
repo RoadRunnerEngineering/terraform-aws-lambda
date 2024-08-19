@@ -3,7 +3,7 @@ name: Lint
 on:
   pull_request:
     branches:
-      - main
+      - master
 
 # cancel workflow runs in progress when a new commit comes through
 concurrency:
@@ -61,10 +61,6 @@ jobs:
         name: tfdocs
         working-directory: .
 
-      - run: terraform-docs markdown table --output-file README.md --output-mode inject .
-        name: tfdocs cloudwatch-logging
-        working-directory: ./modules/cloudwatch-logging
-
       - name: commit changes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -73,7 +69,6 @@ jobs:
           git config --global user.email "devops@roadrunnerwm.com"
           git config --global user.name "DevOps"
           git add README.md
-          git add modules/cloudwatch-logging/README.md
           export CHANGES=$(git diff --cached)
           if [ -n "$CHANGES" ]; then
             git commit -m "Update READMEs with Terraform Docs."
