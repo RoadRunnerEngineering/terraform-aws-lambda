@@ -3,7 +3,7 @@ name: Lint
 on:
   pull_request:
     branches:
-      - main
+      - master
 
 # cancel workflow runs in progress when a new commit comes through
 concurrency:
